@@ -1,0 +1,275 @@
+#!/bin/bash 
+
+
+#Use this function to support dims
+dims_sup(){
+    #local variable use in dims_sup function
+	local columns=0
+    local rows=0
+    # read $1
+    while read myFile
+    do
+        #Intiate the column for next line
+        columns=0
+            # read 1 line from head to tail
+            for i in $myFile
+            do
+                if [ $2 == 1 ]
+                then
+                        mtrNote1[$rows,$columns]=$i
+                else
+                        mtrNote2[$rows,$columns]=$i
+                fi
+			((columns++))
+	        done
+		((rows++))
+	done < $1
+	if [ $2 == 1 ]
+    then
+		mtrfact1=($rows $columns)
+	else
+		mtrfact2=($rows $columns)
+	fi
+}
+
+
+dims(){
+    #Load the row and columns
+	dims_sup $1 1
+    #Ouput the value
+	echo "${mtrfact1[@]}"
+}
+
+
+GetMtrTranspose(){
+    #Set rows and columns from $1 and $2
+	rows=$1
+    columns=$2
+	for ((i=0;i<rows;i++))
+    do
+        for((j=0;j<columns;j++))
+        do
+            if [ $3 == 1 ]
+            then
+                #Change the rows and columns
+                mtrTrans[$j,$i]=${mtrNote1[$i,$j]}
+            else
+                mtrTrans[$j,$i]=${mtrNote2[$i,$j]}
+            fi
+        done
+    done
+}
+
+
+transpose(){
+    #Load the rows and columns
+	dims_sup $1 1
+	GetMtrTranspose ${mtrfact1[0]} ${mtrfact1[1]} 1
+
+	local columns=${mtrfact1[0]}
+    local rows=${mtrfact1[1]}
+	x=$(expr $columns - 1)
+        for ((i=0;i<rows;i++))
+        do
+		    str=""
+                for((j=0;j<columns;j++))
+                do
+			echo -n "${mtrTrans[$i,$j]}"
+			if [ "$j" -ne "$x" ]
+            then
+				echo -n "	"
+			fi
+                done
+		printf "\n"
+        done
+}
+
+
+mean(){
+	local str=""
+    #Load the rows and columns
+	dims_sup $1 1
+	#revers the rows and columns
+	rows=${mtrfact1[0]}
+    columns=${mtrfact1[1]}
+    x=$(expr $columns - 1)
+    #Double the loop to get the value
+	for((i=0;i<columns;i++))
+    do
+		sum=0
+		for((j=0;j<rows;j++))
+        do
+			sum=$(expr $sum + ${mtrNote1[$j,$i]})
+		done
+        # Using the formula to calculate the rounding method: (a + (b/2)*( (a>0)*2-1 )) / b
+		sum=$((($sum + ($rows/2)*( ($sum>0)*2-1 )) / $rows))
+        echo -n "$sum"
+		if [ "$i" -ne "$x" ]
+        then
+			echo -n "	"
+		fi
+	done
+	printf "\n"
+}
+
+
+add(){
+
+    #Using the function to get the rows and columns
+	dims_sup $1 1
+	dims_sup $2 2
+    #Checking two metrix whether they can add or not
+	if [[("${mtrfact1[0]}" -ne "${mtrfact2[0]}")]]
+	then
+		echo "adding the wrong matrix!" 1>&2
+		exit 1
+    elif [[("${mtrfact1[1]}" -ne "${mtrfact2[1]}")]]
+    then
+        echo "adding the wrong matrix!" 1>&2
+        exit 1
+    fi
+
+        local rows=${mtrfact1[0]}
+        local columns=${mtrfact1[1]}
+        x=$(expr $columns - 1)
+
+	for((i=0;i<rows;i++))
+    do
+		sumStr=""
+        sum=0
+		for((j=0;j<columns;j++))
+        do
+			sum=$(expr ${mtrNote1[$i,$j]} + ${mtrNote2[$i,$j]})
+			echo -n "$sum"
+			if [ "$j" -ne "$x" ]
+            then
+				echo -n "	"
+            fi
+		done
+		printf "\n"
+	done		
+}
+
+
+
+multiply(){
+
+    #Using the function to get the rows and columns
+    dims_sup $1 1
+    dims_sup $2 2
+    #Check the metrix
+	if ! [ "${mtrfact1[1]}" == "${mtrfact2[0]}" ]
+    then
+		echo "mutiply the wrong matrix" 1>&2
+		exit 1
+    fi
+
+	local aRows=${mtrfact1[0]}
+    local aColumns=${mtrfact1[1]}
+	local bColumns=${mtrfact2[1]}
+
+	x=$(expr $bColumns - 1)
+
+	for((i=0;i<aRows;i++))
+    do
+		sumStr=""
+		for ((j=0;j<bColumns;j++))
+        do
+			sum=0;mul=0
+			for((k=0;k<aColumns;k++))
+            do
+                mul=$(( ${mtrNote1[$i,$k]} * ${mtrNote2[$k,$j]}))
+				sum=$(expr $sum + $mul)
+			done			
+			
+                echo -n "$sum"
+			if [ "$j" -ne "$x" ]
+            then
+				echo -n "	"
+            fi
+		done
+		printf "\n"
+	done
+}
+
+
+mtrfact1=()
+mtrfact2=()
+assignName=$1
+mtrName2=$3
+declare -A mtrNote1
+declare -A mtrNote2
+declare -A mtrTrans
+
+mtrName1="${2:-/dev/stdin}"
+
+# use -f to check whether $2 file exist or not
+if ! [ -f $2 ]
+then
+    # 1>&2 means go to std error state
+	echo "File is not exist!" 1>&2
+	exit 1
+fi
+# use -r to check whether $2 readable or not
+if ! [ -r $2 ]
+then
+    echo "File can not print out!" 1>&2
+    exit 1
+fi
+
+# check the number of argument when user type in the function name, if over 2, then goto error
+if [[("$assignName" == "dims")]]
+then
+	if (( $# > 2 ))
+    then
+		echo "Overflows!" 1>&2
+		exit 1
+    fi
+    #dims       m1|m2
+    $assignName $mtrName1
+elif [[("$assignName" == "mean")]]
+then
+    if (( $# > 2 ))
+    then
+        echo "Overflows!" 1>&2
+        exit 1
+    fi
+    #transpose m1/m2
+    $assignName $mtrName1
+elif [[("$assignName" == "transpose")]]
+then
+    if (( $# > 2 ))
+    then
+        echo "Overflows!" 1>&2
+        exit 1
+    fi
+    #add m1/m2
+    $assignName $mtrName1
+# likewise, if add or multiply's argument not equal 3 , then goto stderror
+elif [[("$assignName" == "add")]]
+then
+	
+	if (( $# != 3 ))
+    then
+		echo "Overflows!" 1>&2
+		exit 1
+    fi
+    #multiply m1/m2
+    $assignName $mtrName1 $mtrName2
+elif [[("$assignName" == "multiply")]]
+then
+
+    if (( $# != 3 ))
+    then
+        echo "Overflows!" 1>&2
+        exit 1
+    fi
+
+    $assignName $mtrName1 $mtrName2
+else
+	echo "Command is not exist!" 1>&2
+	exit 1
+fi
+
+
+exit 0
